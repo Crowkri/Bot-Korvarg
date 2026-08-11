@@ -1,8 +1,11 @@
 import discord
+import os
 from discord.ext import commands
+from dotenv import load_dotenv
 
 # --- 1. CONFIGURAZIONI INIZIALI ---
-TOKEN = 'MTUzNjg0MTAxMTQ4ODIyNzQ5OQ.GVZVXD.yniiAhWlL1_BxZC08Qsba6WyHXzd84rXsB5ZyI'
+load_dotenv()
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 # ID dei Canali
 CANALE_BENVENUTO_ID = 1536818478957334699   # Canale pubblico per i saluti
