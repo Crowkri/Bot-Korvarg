@@ -81,6 +81,13 @@ class VistaRuoli(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(MenuRuoli(bot_instance, guild_id, user_id))
 
+# --- 3.1 FUNZIONI AUSILIARIE ---
+def genera_barra(percentuale, lunghezza=10):
+    """Crea una barra di progresso visiva in stile ASCII/Unicode."""
+    blocchi_pieni = int(round((percentuale / 100) * lunghezza))
+    blocchi_vuoti = lunghezza - blocchi_pieni
+    return "█" * blocchi_pieni + "░" * blocchi_vuoti
+
 # --- 4. EVENTI E COMANDI ---
 @bot.event
 async def on_ready():
@@ -109,7 +116,7 @@ async def on_member_join(member):
     except discord.Forbidden:
         print(f"Impossibile inviare un DM a {member.name}.")
 
-# Comando per le statistiche dei ruoli
+# Comando per le statistiche dei ruoli (Versione con Embed e Progress Bar)
 @bot.command(name='stats')
 @commands.has_any_role(*RUOLI_AUTORIZZATI_STATS)
 async def statistiche_ruoli(ctx):
@@ -123,19 +130,52 @@ async def statistiche_ruoli(ctx):
     if totale_membri == 0:
         return await ctx.send("Errore nel calcolo dei membri.")
 
-    messaggio = f"📊 **Resoconto Ruoli (Totale membri: {totale_membri})**\n\n"
-    
+    # 1. Calcolo degli utenti unici che possiedono almeno uno dei ruoli configurati
+    membri_con_almeno_un_ruolo = set()
+    totale_assegnazioni = 0
+
+    for ruolo_id in RUOLI_CONFIGURATI.values():
+        ruolo_obj = guild.get_role(ruolo_id)
+        if ruolo_obj:
+            for m in ruolo_obj.members:
+                membri_con_almeno_un_ruolo.add(m.id)
+                totale_assegnazioni += 1
+
+    membri_configurati_count = len(membri_con_almeno_un_ruolo)
+    media_ruoli = (totale_assegnazioni / membri_configurati_count) if membri_configurati_count > 0 else 0
+
+    # 2. Creazione dell'Embed
+    embed = discord.Embed(
+        title="📊 Resoconto e Statistiche Ruoli",
+        description=(
+            f"**Totale Membri Server:** {totale_membri}\n"
+            f"**Membri Configurati (almeno 1 ruolo):** {membri_configurati_count} ({(membri_configurati_count/totale_membri)*100:.1f}%)\n"
+            f"**Media Ruoli per Utente:** {media_ruoli:.2f}\n"
+            f"\n*Nota: Le percentuali sono calcolate sui {membri_configurati_count} utenti registrati.*"
+        ),
+        color=discord.Color.blue()
+    )
+
+    # 3. Formattazione di ciascun ruolo con Progress Bar
+    testo_ruoli = ""
     for nome_ruolo, ruolo_id in RUOLI_CONFIGURATI.items():
         ruolo_obj = guild.get_role(ruolo_id)
         if ruolo_obj:
-            membri_con_ruolo = len(ruolo_obj.members)
-            percentuale = (membri_con_ruolo / totale_membri) * 100
-            messaggio += f"• **{nome_ruolo}**: {membri_con_ruolo} utenti ({percentuale:.1f}%)\n"
-        else:
-            messaggio += f"• **{nome_ruolo}**: *Ruolo non trovato*\n"
+            count = len(ruolo_obj.members)
+            pct_configurati = (count / membri_configurati_count * 100) if membri_configurati_count > 0 else 0
             
-    # Invia il resoconto nel canale dedicato
-    await canale_stats.send(messaggio)
+            barra = genera_barra(pct_configurati)
+            nome_pulito = nome_ruolo.replace("_", " ")
+            
+            testo_ruoli += f"**{nome_pulito}**\n`{barra}` **{count}** ({pct_configurati:.1f}%)\n\n"
+        else:
+            testo_ruoli += f"**{nome_ruolo}**: *Ruolo non trovato*\n\n"
+
+    embed.add_field(name="🛡️ Distribuzione Ruoli", value=testo_ruoli, inline=False)
+    embed.set_footer(text="Bot Gestione Ruoli • Aggiornato")
+
+    # Invia l'Embed nel canale dedicato
+    await canale_stats.send(embed=embed)
     
     # Se il comando è stato scritto in un canale diverso, avvisa l'utente
     if ctx.channel.id != CANALE_STATISTICHE_ID:
